@@ -165,6 +165,24 @@
   }
   .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--navy-light);}
   .field textarea{resize:vertical;min-height:64px;}
+  .field-hint{display:block;font-size:11px;color:var(--teal);margin-top:4px;font-weight:600;}
+  .combo{position:relative;}
+  .combo-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-soft);pointer-events:none;}
+  .combo-caret{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--ink-soft);pointer-events:none;transition:transform .15s ease;}
+  .combo.open .combo-caret{transform:translateY(-50%) rotate(180deg);}
+  .combo input{padding-left:34px !important;padding-right:30px !important;}
+  .combo-list{
+    display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+    max-height:230px;overflow-y:auto;background:#fff;border:1px solid var(--line);
+    border-radius:9px;box-shadow:0 10px 28px rgba(15,42,68,.14);z-index:20;
+  }
+  .combo.open .combo-list{display:block;}
+  .combo-item{padding:9px 12px;font-size:13.5px;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline;}
+  .combo-item:hover, .combo-item.active{background:var(--paper);}
+  .combo-item .combo-tag{font-size:11px;color:var(--ink-soft);font-weight:600;white-space:nowrap;}
+  .combo-item.combo-custom{color:var(--navy);font-weight:700;border-top:1px solid var(--line);}
+  .combo-empty{padding:12px;font-size:13px;color:var(--ink-soft);text-align:center;}
+  .combo mark{background:#FFE58A;color:inherit;border-radius:2px;}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
   .btn{border:none;border-radius:9px;padding:10px 18px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:var(--font-sans);}
@@ -295,9 +313,21 @@
       </div>
       <div class="field-row">
         <div class="field"><label>Chave</label><input type="text" id="f_chave" value="EUWJ"></div>
-        <div class="field"><label>TAG/Local</label><input type="text" id="f_tag"></div>
+        <div class="field"><label>TAG/Local</label><input type="text" id="f_tag"><span class="field-hint" id="f_tag_hint"></span></div>
       </div>
-      <div class="field"><label>Denominação (local)</label><input type="text" id="f_local" required placeholder="Ex.: AEROPORTO"></div>
+      <div class="field">
+        <label>Denominação (local)</label>
+        <div class="combo" id="f_local_combo">
+          <svg class="combo-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="f_local_search" autocomplete="off" placeholder="Buscar denominação...">
+          <svg class="combo-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <div class="combo-list" id="f_local_list"></div>
+        </div>
+      </div>
+      <div class="field" id="f_local_custom_wrap" style="display:none;">
+        <label>Digite a denominação</label>
+        <input type="text" id="f_local_custom" placeholder="Ex.: NOVA UNIDADE X">
+      </div>
       <div class="field">
         <label>Tipo de serviço</label>
         <select id="f_tipo">
@@ -333,6 +363,77 @@
 const DB_URL = "https://uqqcbndznuchnedwjkoc.supabase.co";
 const DB_KEY = "sb_publishable_CEqfB2qjatlZ3uTzRdwHmw_QLFyKbPZ";
 const sb = supabase.createClient(DB_URL, DB_KEY);
+
+// Catálogo de locais do bloco 330101 (Base de Operações Geol. Pedro de Moura)
+const LOCATIONS_330101 = [
+  ["330101.0001","AEROPORTO"],
+  ["330101.0002","BASE DE APOIO"],
+  ["330101.0003","PARQUE DE RESÍDUOS"],
+  ["330101.0004","PORTO URUCU"],
+  ["330101.0005","PORTO EVANDRO"],
+  ["330101.0006","ALOJAMENTO TUCANO"],
+  ["330101.0007","ALOJAMENTO GAVIÃO"],
+  ["330101.0009","ALOJAMENTO SABIÁ"],
+  ["330101.0010","ALOJAMENTO MUSSUÃ"],
+  ["330101.0011","ALOJAMENTO GARÇA"],
+  ["330101.0012","ALOJAMENTO ARARA"],
+  ["330101.0013","ALOJAMENTO PAPAGAIO"],
+  ["330101.0014","ALOJAMENTO TARTARUGA"],
+  ["330101.0015","GERÊNCIA DE TRANSPORTE (TT)"],
+  ["330101.0016","PORTO FORTE"],
+  ["330101.0017","GERÊNCIA TEC. INFORMAÇÃO E TELECOM. (TIC)"],
+  ["330101.0018","ARMAZÉM D-05"],
+  ["330101.0019","ARMAZÉM D-14"],
+  ["330101.0020","OPERAÇÕES EM POÇOS TERRESTRES - AM"],
+  ["330101.0021","ARMAZÉM D-08"],
+  ["330101.0022","POSTO ABASTECIMENTO GNV LUC-9"],
+  ["330101.0023","POSTO ABASTECIMENTO COMBUST. PÓLO ARARA"],
+  ["330101.0024","ESCOLA ESPERANÇA"],
+  ["330101.0025","USINA DE ASFALTO"],
+  ["330101.0026","ORQUIDÁRIO"],
+  ["330101.0027","OFICINA OZIEL"],
+  ["330101.0028","ARMAZÉM D-11"],
+  ["330101.0029","GERÊNCIA DA CONSTRUÇÃO E MONTAGEM (CM)"],
+  ["330101.0030","GALPÃO HALLIBURTON"],
+  ["330101.0031","ARMAZÉM D-09"],
+  ["330101.0032","VIVEIRO PÓLO ARARA"],
+  ["330101.0033","POÇOS ARTESIANOS"],
+  ["330101.0034","PORTO JUMA"],
+  ["330101.0035","GERÊNCIA DE SERVIÇOS GERAIS (SG)"],
+  ["330101.0036","ARMAZÉM D-12"],
+  ["330101.0037","ARMAZÉM D-13"],
+  ["330101.0038","ARMAZÉM D-15"],
+  ["330101.0039","DEPÓSITO DE INFLAMÁVEIS SMS"],
+  ["330101.0040","CRE-2"],
+  ["330101.0041","PRAÇA CASTRO ALVES"],
+  ["330101.0042","BASE SÍSMICA"],
+  ["330101.0043","GERÊNCIA DE ARMAZENAMENTO (ARM)"],
+  ["330101.0044","GERÊNCIA DE SEG. MEIO AMB. SAÚDE (SMS)"],
+  ["330101.0045","GERÊNCIA DE DESENVOLVIM. DA PRODUÇÃO (DP)"],
+  ["330101.0046","GERÊNCIA DA ENG. E MANUT/INSPEÇÃO (EMI)"],
+  ["330101.0047","GEODÉSIA (GDS)"],
+  ["330101.0049","ÁREA PARA CONTRATADA 02"],
+  ["330101.0050","ARMAZÉM D-17"],
+  ["330101.0051","CDA-MACHADÃO (ARM. CENTRO DE DEF. AMB.)"],
+  ["330101.0052","NR-10 - MATERIAL E EQUIPAMENTO"],
+  ["330101.0053","PORTO FORTALEZA"],
+  ["330101.0054","ARMAZÉM D-19"],
+  ["330101.0055","ARMAZÉM D-20"],
+  ["330101.0056","COMPLEXO HOTELEIRO VITÓRIA RÉGIA"],
+  ["330101.0057","GRUPOS GERADORES PETROBRAS"],
+  ["330101.0058","CARRETAS SOLARES PETROBRAS"],
+  ["330101.0059","ARMAZÉM D-16"],
+  ["330101.0060","TOCA DA RAPOSA"],
+  ["330101.0061","PORTO PIRANHA"],
+  ["330101.0062","TOCA DO COELHO"],
+  ["330101.0063","ARMAZÉM D-18"],
+  ["330101.0064","ARMAZÉM D-01"],
+  ["330101.0065","ARMAZÉM D-02"],
+  ["330101.0066","ARMAZÉM D-03"],
+  ["330101.0067","ARMAZÉM D-04"],
+  ["330101.FCOE","SISTEMA DE ESTRUTURAS AUXILIARES"]
+];
+const CUSTOM_LOCAL_VALUE = "__custom__";
 
 const ICON_BY_TIPO = {
   "Boiler / água quente": "🔥",
@@ -458,6 +559,7 @@ function renderChips(){
 
 function renderList(){
   renderStats();
+  renderChips();
   const listEl = document.getElementById("list");
 
   if(state.loading){
@@ -757,6 +859,107 @@ document.querySelectorAll(".tab").forEach(el=>{
 // ---------- Modal ----------
 const overlay = document.getElementById("overlay");
 const form = document.getElementById("ticketForm");
+const localCombo = document.getElementById("f_local_combo");
+const localSearchInput = document.getElementById("f_local_search");
+const localListEl = document.getElementById("f_local_list");
+const localCustomWrap = document.getElementById("f_local_custom_wrap");
+const localCustomInput = document.getElementById("f_local_custom");
+const tagInput = document.getElementById("f_tag");
+const tagHint = document.getElementById("f_tag_hint");
+
+const SORTED_LOCATIONS = [...LOCATIONS_330101].sort((a,b)=>a[1].localeCompare(b[1]));
+let selectedLocalValue = ""; // tag, CUSTOM_LOCAL_VALUE, or ""
+localSearchInput.placeholder = `Buscar denominação... (${SORTED_LOCATIONS.length} opções)`;
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function highlight(text, query){
+  if(!query) return escapeHtml(text);
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if(idx === -1) return escapeHtml(text);
+  return escapeHtml(text.slice(0,idx)) + "<mark>" + escapeHtml(text.slice(idx, idx+query.length)) + "</mark>" + escapeHtml(text.slice(idx+query.length));
+}
+
+function renderLocalList(){
+  const q = localSearchInput.value.trim();
+  const ql = q.toLowerCase();
+  const filtered = q ? SORTED_LOCATIONS.filter(([tag,nome]) => nome.toLowerCase().includes(ql) || tag.toLowerCase().includes(ql)) : SORTED_LOCATIONS;
+
+  let html = "";
+  if(filtered.length === 0){
+    html += `<div class="combo-empty">Nenhuma denominação encontrada</div>`;
+  } else {
+    html += filtered.slice(0,200).map(([tag,nome]) =>
+      `<div class="combo-item" data-tag="${tag}"><span>${highlight(nome,q)}</span><span class="combo-tag">${tag}</span></div>`
+    ).join("");
+  }
+  html += `<div class="combo-item combo-custom" data-tag="${CUSTOM_LOCAL_VALUE}">✎ Outro (digitar manualmente)</div>`;
+  localListEl.innerHTML = html;
+
+  localListEl.querySelectorAll(".combo-item[data-tag]").forEach(el=>{
+    el.addEventListener("mousedown", (e)=>{
+      e.preventDefault();
+      selectLocal(el.dataset.tag);
+    });
+  });
+}
+
+function selectLocal(tag){
+  selectedLocalValue = tag;
+  if(tag === CUSTOM_LOCAL_VALUE){
+    localSearchInput.value = "";
+    localSearchInput.placeholder = `Buscar denominação... (${SORTED_LOCATIONS.length} opções)`;
+    localCustomWrap.style.display = "";
+    localCustomInput.focus();
+    tagInput.value = "";
+    tagInput.readOnly = false;
+    tagHint.textContent = "";
+  } else {
+    const match = LOCATIONS_330101.find(([t])=>t===tag);
+    localSearchInput.value = match ? match[1] : "";
+    localCustomWrap.style.display = "none";
+    localCustomInput.value = "";
+    tagInput.value = tag;
+    tagInput.readOnly = true;
+    tagHint.textContent = "Preenchido automaticamente a partir da denominação";
+  }
+  closeLocalList();
+}
+
+function openLocalList(){
+  localCombo.classList.add("open");
+  renderLocalList();
+}
+function closeLocalList(){
+  localCombo.classList.remove("open");
+}
+
+localSearchInput.addEventListener("focus", openLocalList);
+localSearchInput.addEventListener("input", ()=>{
+  // digitar de novo invalida a seleção automática até escolher um item da lista
+  if(selectedLocalValue && selectedLocalValue !== CUSTOM_LOCAL_VALUE){
+    selectedLocalValue = "";
+    tagInput.value = "";
+    tagInput.readOnly = false;
+    tagHint.textContent = "";
+  }
+  openLocalList();
+});
+document.addEventListener("click", (e)=>{
+  if(!localCombo.contains(e.target)) closeLocalList();
+});
+
+function resetLocalCombo(){
+  selectedLocalValue = "";
+  localSearchInput.value = "";
+  localSearchInput.placeholder = `Buscar denominação... (${SORTED_LOCATIONS.length} opções)`;
+  localCustomWrap.style.display = "none";
+  localCustomInput.value = "";
+  tagInput.readOnly = false;
+  tagHint.textContent = "";
+  closeLocalList();
+}
 
 function openNew(){
   editingId = null;
@@ -764,6 +967,7 @@ function openNew(){
   form.reset();
   document.getElementById("f_data").value = new Date().toISOString().slice(0,10);
   document.getElementById("f_chave").value = "EUWJ";
+  resetLocalCombo();
   overlay.classList.add("show");
   document.getElementById("f_num").focus();
 }
@@ -775,15 +979,33 @@ function openEdit(id){
   document.getElementById("f_num").value = t.numero_solicitacao;
   document.getElementById("f_data").value = t.data_abertura;
   document.getElementById("f_chave").value = t.chave || "";
-  document.getElementById("f_tag").value = t.tag_local || "";
-  document.getElementById("f_local").value = t.local;
   document.getElementById("f_tipo").value = t.tipo_servico;
   document.getElementById("f_titulo").value = t.titulo;
   document.getElementById("f_desc").value = t.descricao || "";
   document.getElementById("f_status").value = t.status;
+
+  const match = LOCATIONS_330101.find(([tag,nome]) => tag === t.tag_local || nome === t.local);
+  if(match){
+    selectedLocalValue = match[0];
+    localSearchInput.value = match[1];
+    localCustomWrap.style.display = "none";
+    localCustomInput.value = "";
+    tagInput.value = t.tag_local || match[0];
+    tagInput.readOnly = true;
+    tagHint.textContent = "Preenchido automaticamente a partir da denominação";
+  } else {
+    selectedLocalValue = CUSTOM_LOCAL_VALUE;
+    localSearchInput.value = "";
+    localCustomWrap.style.display = "";
+    localCustomInput.value = t.local;
+    tagInput.value = t.tag_local || "";
+    tagInput.readOnly = false;
+    tagHint.textContent = "";
+  }
+  closeLocalList();
   overlay.classList.add("show");
 }
-function closeModal(){ overlay.classList.remove("show"); }
+function closeModal(){ overlay.classList.remove("show"); closeLocalList(); }
 
 document.getElementById("btnNew").addEventListener("click", openNew);
 document.getElementById("btnCancel").addEventListener("click", closeModal);
@@ -792,12 +1014,25 @@ overlay.addEventListener("click", (e)=>{ if(e.target === overlay) closeModal(); 
 form.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const tipo = document.getElementById("f_tipo").value;
+
+  let localNome;
+  if(selectedLocalValue === CUSTOM_LOCAL_VALUE){
+    localNome = localCustomInput.value.trim().toUpperCase();
+  } else {
+    const match = LOCATIONS_330101.find(([tag]) => tag === selectedLocalValue);
+    localNome = match ? match[1] : "";
+  }
+  if(!localNome){
+    showToast("Selecione ou digite a denominação do local");
+    return;
+  }
+
   const payload = {
     numero_solicitacao: document.getElementById("f_num").value.trim(),
     data_abertura: document.getElementById("f_data").value,
     chave: document.getElementById("f_chave").value.trim(),
-    tag_local: document.getElementById("f_tag").value.trim(),
-    local: document.getElementById("f_local").value.trim().toUpperCase(),
+    tag_local: tagInput.value.trim(),
+    local: localNome,
     tipo_servico: tipo,
     icone: ICON_BY_TIPO[tipo] || "🔧",
     titulo: document.getElementById("f_titulo").value.trim(),
