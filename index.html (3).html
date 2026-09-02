@@ -1184,8 +1184,13 @@ function parseNotaFromText(text){
   m = norm.match(/Autor[\*\?ºª]?\s*[:\|]?\s*([A-Z]{3,8})\b/i);
   if(m) out.chave = m[1].toUpperCase();
 
-  m = norm.match(/Texto breve\*?\s*\n+\s*(.+)/i);
-  if(m) out.titulo = m[1].trim().replace(/\s{2,}/g," ");
+  m = norm.match(/Texto breve\*?\s*\n?([^\n]*)\n?([^\n]*)/i);
+  if(m){
+    const candidates = [m[1], m[2]].map(s => (s||"").trim());
+    let t = candidates.find(s => s.replace(/[^A-Za-zÀ-ÿ0-9]/g,"").length >= 2) || "";
+    t = t.replace(/^[|_\-–—\s]+/, "").replace(/[|_\-–—;:\s]+$/, "");
+    if(t) out.titulo = t;
+  }
 
   // Data de abertura: vem do campo "...aberta em DD/MM/AAAA" no topo do documento
   m = norm.match(/aberta em\s*(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/i);
