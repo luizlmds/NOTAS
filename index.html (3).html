@@ -47,6 +47,16 @@
   .header p{margin:4px 0 0;font-size:13.5px;color:#BFD3E5;font-weight:500;display:flex;align-items:center;gap:6px;}
   .header-unit{font-weight:700 !important;color:#FFE58A !important;letter-spacing:.2px;}
   .dot{width:7px;height:7px;border-radius:50%;background:#38C793;display:inline-block;box-shadow:0 0 0 3px rgba(56,199,147,.25);}
+  .header-actions{display:flex;align-items:center;gap:10px;z-index:1;}
+  .btn-refresh{
+    background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:10px 16px;
+    font-family:var(--font-sans);font-weight:700;font-size:14px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;transition:background .12s ease;
+  }
+  .btn-refresh:hover{background:rgba(255,255,255,.24);}
+  .btn-refresh:disabled{opacity:.6;cursor:default;}
+  .btn-refresh.spinning svg{animation:spin .7s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
   .btn-new{
     background:var(--yellow);color:var(--navy-deep);border:none;border-radius:10px;padding:11px 18px;
     font-family:var(--font-sans);font-weight:700;font-size:14px;cursor:pointer;
@@ -165,6 +175,20 @@
   }
   .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--navy-light);}
   .field textarea{resize:vertical;min-height:64px;}
+  .field-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+  .field-label-row label{margin-bottom:0;}
+  .add-type-link{font-size:12px;font-weight:700;color:var(--navy);cursor:pointer;}
+  .add-type-link:hover{text-decoration:underline;}
+  .new-type-box{
+    margin-top:8px;padding:12px;background:var(--paper);border:1px dashed var(--line);border-radius:9px;
+    display:grid;grid-template-columns:1fr 64px auto auto;gap:8px;align-items:center;
+  }
+  .new-type-box input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:var(--font-sans);background:#fff;}
+  .new-type-box input#newTypeIcon{text-align:center;}
+  .new-type-box .btn{padding:8px 12px;font-size:12.5px;}
+  @media (max-width:520px){
+    .new-type-box{grid-template-columns:1fr 1fr;}
+  }
   .field-hint{display:block;font-size:11px;color:var(--teal);margin-top:4px;font-weight:600;}
   .combo{position:relative;}
   .combo-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-soft);pointer-events:none;}
@@ -223,10 +247,16 @@
         <p><span class="dot" id="liveDot"></span> <span id="liveLabel">Conectando...</span></p>
       </div>
     </div>
-    <button class="btn-new" id="btnNew">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      Nova nota
-    </button>
+    <div class="header-actions">
+      <button class="btn-refresh" id="btnRefresh" title="Atualizar dados">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        Atualizar
+      </button>
+      <button class="btn-new" id="btnNew">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nova nota
+      </button>
+    </div>
   </div>
 
   <div class="stats" id="stats"></div>
@@ -329,16 +359,17 @@
         <input type="text" id="f_local_custom" placeholder="Ex.: NOVA UNIDADE X">
       </div>
       <div class="field">
-        <label>Tipo de serviço</label>
-        <select id="f_tipo">
-          <option value="Boiler / água quente">🔥 Boiler / água quente</option>
-          <option value="Cafeteira industrial">☕ Cafeteira industrial</option>
-          <option value="Tomada elétrica">🔌 Tomada elétrica</option>
-          <option value="Ar-condicionado">❄️ Ar-condicionado</option>
-          <option value="Hidráulica">🚿 Hidráulica</option>
-          <option value="Obra">🏗️ Obra</option>
-          <option value="Outro">🔧 Outro</option>
-        </select>
+        <div class="field-label-row">
+          <label>Tipo de serviço</label>
+          <span class="add-type-link" id="btnAddType">+ Cadastrar tipo</span>
+        </div>
+        <select id="f_tipo"></select>
+        <div class="new-type-box" id="newTypeBox" style="display:none;">
+          <input type="text" id="newTypeName" placeholder="Nome do novo tipo (ex.: Marcenaria)">
+          <input type="text" id="newTypeIcon" placeholder="🔧" maxlength="4">
+          <button type="button" class="btn btn-primary" id="btnSaveType">Adicionar</button>
+          <button type="button" class="btn btn-ghost" id="btnCancelType">Cancelar</button>
+        </div>
       </div>
       <div class="field"><label>Título</label><input type="text" id="f_titulo" required placeholder="Resumo curto da solicitação"></div>
       <div class="field"><label>Descrição da atividade</label><textarea id="f_desc"></textarea></div>
@@ -435,19 +466,14 @@ const LOCATIONS_330101 = [
 ];
 const CUSTOM_LOCAL_VALUE = "__custom__";
 
-const ICON_BY_TIPO = {
-  "Boiler / água quente": "🔥",
-  "Cafeteira industrial": "☕",
-  "Tomada elétrica": "🔌",
-  "Ar-condicionado": "❄️",
-  "Hidráulica": "🚿",
-  "Obra": "🏗️",
-  "Outro": "🔧"
-};
-const ICON_BG = {
-  "🔥": "var(--clay-soft)", "☕": "var(--gold-soft)", "🔌": "var(--sky-soft)",
-  "❄️": "var(--teal-soft)", "🚿": "var(--plum-soft)", "🏗️": "var(--amber-soft)", "🔧": "var(--paper)"
-};
+const ICON_BG_PALETTE = ["var(--clay-soft)","var(--gold-soft)","var(--sky-soft)","var(--teal-soft)","var(--plum-soft)","var(--amber-soft)","var(--red-soft)"];
+let serviceTypes = []; // [{nome, icone}] carregado do banco
+let ICON_BY_TIPO = {};
+function iconBgFor(icone){
+  let h = 0;
+  for(let i=0;i<icone.length;i++) h = (h*31 + icone.charCodeAt(i)) >>> 0;
+  return ICON_BG_PALETTE[h % ICON_BG_PALETTE.length];
+}
 const LOCAL_PALETTE = ["var(--clay)","var(--sky)","var(--teal)","var(--gold)","var(--plum)","var(--navy)"];
 function localColor(local){
   let h = 0;
@@ -508,6 +534,33 @@ async function loadTickets(){
   render();
 }
 
+async function loadServiceTypes(){
+  const { data, error } = await sb.from("tipos_servico").select("*").order("nome");
+  if(error){ console.error("Erro ao carregar tipos de serviço", error); return; }
+  serviceTypes = data;
+  ICON_BY_TIPO = {};
+  serviceTypes.forEach(t => { ICON_BY_TIPO[t.nome] = t.icone; });
+  populateTipoSelect();
+}
+
+function populateTipoSelect(){
+  const sel = document.getElementById("f_tipo");
+  const current = sel.value;
+  sel.innerHTML = serviceTypes.map(t => `<option value="${t.nome}">${t.icone} ${t.nome}</option>`).join("");
+  if(serviceTypes.some(t=>t.nome===current)) sel.value = current;
+}
+
+async function refreshAll(){
+  const btn = document.getElementById("btnRefresh");
+  btn.disabled = true;
+  btn.classList.add("spinning");
+  await Promise.all([loadTickets(), loadServiceTypes()]);
+  btn.disabled = false;
+  btn.classList.remove("spinning");
+  showToast("Dados atualizados");
+}
+document.getElementById("btnRefresh").addEventListener("click", refreshAll);
+
 function populateLocalSelect(){
   const sel = document.getElementById("localSelect");
   const current = state.local;
@@ -517,6 +570,38 @@ function populateLocalSelect(){
   sel.value = locais.includes(current) ? current : "todos";
   state.local = sel.value;
 }
+
+// ---------- Cadastrar novo tipo de serviço ----------
+const newTypeBox = document.getElementById("newTypeBox");
+document.getElementById("btnAddType").addEventListener("click", ()=>{
+  newTypeBox.style.display = newTypeBox.style.display === "none" ? "grid" : "none";
+  document.getElementById("newTypeName").focus();
+});
+document.getElementById("btnCancelType").addEventListener("click", ()=>{
+  newTypeBox.style.display = "none";
+  document.getElementById("newTypeName").value = "";
+  document.getElementById("newTypeIcon").value = "";
+});
+document.getElementById("btnSaveType").addEventListener("click", async ()=>{
+  const nome = document.getElementById("newTypeName").value.trim();
+  const icone = document.getElementById("newTypeIcon").value.trim() || "🔧";
+  if(!nome){ showToast("Digite o nome do novo tipo de serviço"); return; }
+  if(serviceTypes.some(t => t.nome.toLowerCase() === nome.toLowerCase())){
+    showToast("Esse tipo de serviço já existe");
+    return;
+  }
+  const btn = document.getElementById("btnSaveType");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const { error } = await sb.from("tipos_servico").insert({ nome, icone });
+  btn.disabled = false; btn.textContent = "Adicionar";
+  if(error){ showToast("Erro ao cadastrar tipo de serviço"); console.error(error); return; }
+  await loadServiceTypes();
+  document.getElementById("f_tipo").value = nome;
+  newTypeBox.style.display = "none";
+  document.getElementById("newTypeName").value = "";
+  document.getElementById("newTypeIcon").value = "";
+  showToast("Tipo de serviço cadastrado");
+});
 
 function currentStatusClass(status){
   if(status === "Em andamento") return "andamento";
@@ -579,7 +664,7 @@ function renderList(){
   listEl.innerHTML = filtered.map(t=>{
     const isOpen = !!state.open[t.id];
     const lc = localColor(t.local);
-    const iconBg = ICON_BG[t.icone] || "var(--paper)";
+    const iconBg = iconBgFor(t.icone || "🔧");
     const dias = diasAberta(t.data_abertura);
     const diasTxt = t.status === "Concluída" ? `${dias} dia${dias===1?'':'s'} até concluir` : `${dias} dia${dias===1?'':'s'} em aberto`;
     return `
@@ -1234,6 +1319,7 @@ document.getElementById("btnReport").addEventListener("click", ()=>{
 // ---------- Realtime ----------
 setLive("connecting");
 loadTickets();
+loadServiceTypes();
 
 sb.channel("notas-realtime")
   .on("postgres_changes", { event:"*", schema:"public", table:"notas" }, () => {
@@ -1246,6 +1332,12 @@ sb.channel("notas-realtime")
       console.error("Realtime:", status, err);
     }
   });
+
+sb.channel("tipos-servico-realtime")
+  .on("postgres_changes", { event:"*", schema:"public", table:"tipos_servico" }, () => {
+    loadServiceTypes();
+  })
+  .subscribe();
 </script>
 </body>
 </html>
