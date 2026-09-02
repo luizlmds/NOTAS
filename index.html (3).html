@@ -653,7 +653,7 @@ function renderList(){
     return;
   }
 
-  const filtered = tickets.filter(matches);
+  const filtered = tickets.filter(matches).sort((a,b)=> diasAberta(b.data_abertura) - diasAberta(a.data_abertura));
   document.getElementById("countLine").textContent = `${filtered.length} nota${filtered.length===1?'':'s'} exibida${filtered.length===1?'':'s'}`;
 
   if(filtered.length === 0){
@@ -1154,7 +1154,7 @@ document.getElementById("btnBackup").addEventListener("click", ()=>{
   if(!window.XLSX){ showToast("Erro ao carregar gerador de Excel"); return; }
   if(!tickets.length){ showToast("Não há notas para exportar"); return; }
 
-  const rows = tickets.map(t=>({
+  const rows = [...tickets].sort((a,b)=> diasAberta(b.data_abertura) - diasAberta(a.data_abertura)).map(t=>({
     "Nº Solicitação": t.numero_solicitacao,
     "Data Abertura": fmtDate(t.data_abertura),
     "Chave": t.chave || "",
@@ -1293,14 +1293,16 @@ document.getElementById("btnReport").addEventListener("click", ()=>{
   doc.text("Notas detalhadas", margin, y);
   y += 10;
 
-  const rows = tickets.map(t=>[
-    t.numero_solicitacao,
-    fmtDate(t.data_abertura),
-    t.local,
-    t.tipo_servico,
-    t.status,
-    String(diasAberta(t.data_abertura))
-  ]);
+  const rows = [...tickets]
+    .sort((a,b)=> diasAberta(b.data_abertura) - diasAberta(a.data_abertura))
+    .map(t=>[
+      t.numero_solicitacao,
+      fmtDate(t.data_abertura),
+      t.local,
+      t.tipo_servico,
+      t.status,
+      String(diasAberta(t.data_abertura))
+    ]);
   doc.autoTable({
     startY:y,
     head:[["Nº","Data","Local","Tipo de serviço","Status","Dias"]],
