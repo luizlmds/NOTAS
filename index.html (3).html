@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
 <style>
   :root{
     --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -165,6 +166,18 @@
   /* Modal */
   .overlay{position:fixed;inset:0;background:rgba(15,42,68,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;}
   .overlay.show{display:flex;}
+  .scan-box{background:#fff;border-radius:16px;padding:34px 40px;text-align:center;max-width:300px;}
+  .scan-spinner{
+    width:40px;height:40px;border-radius:50%;margin:0 auto 16px;
+    border:4px solid var(--line);border-top-color:var(--navy);animation:spin 0.8s linear infinite;
+  }
+  .scan-title{font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--ink);}
+  .scan-sub{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
+  .scan-banner{
+    display:flex;align-items:center;gap:9px;background:var(--sky-soft);color:var(--sky);
+    border-radius:9px;padding:10px 12px;font-size:12.5px;font-weight:600;margin-bottom:16px;
+  }
+  .scan-banner svg{flex:0 0 auto;}
   .modal{background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:92vh;overflow:auto;padding:26px 26px 22px;}
   .modal h2{font-family:var(--font-sans);font-size:19px;margin:0 0 16px;color:var(--navy-deep);}
   .field{margin-bottom:14px;}
@@ -252,6 +265,11 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         Atualizar
       </button>
+      <button class="btn-refresh" id="btnScan" title="Ler nota de uma foto">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Anexar/tirar foto
+      </button>
+      <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
       <button class="btn-new" id="btnNew">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Nova nota
@@ -333,9 +351,21 @@
   </div>
 </div>
 
+<div class="overlay" id="scanOverlay">
+  <div class="scan-box">
+    <div class="scan-spinner"></div>
+    <div class="scan-title">Lendo a imagem...</div>
+    <div class="scan-sub" id="scanProgress">Isso pode levar alguns segundos</div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay">
   <div class="modal">
     <h2 id="modalTitle">Nova nota</h2>
+    <div class="scan-banner" id="scanBanner" style="display:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>Dados extraídos automaticamente da foto — confira os campos antes de salvar.</span>
+    </div>
     <form id="ticketForm">
       <div class="field-row">
         <div class="field"><label>Nº Solicitação</label><input type="text" id="f_num" required></div>
@@ -1053,9 +1083,186 @@ function openNew(){
   document.getElementById("f_data").value = new Date().toISOString().slice(0,10);
   document.getElementById("f_chave").value = "EUWJ";
   resetLocalCombo();
+  document.getElementById("scanBanner").style.display = "none";
   overlay.classList.add("show");
   document.getElementById("f_num").focus();
 }
+// ---------- Ler nota a partir de foto (OCR) ----------
+const scanInput = document.getElementById("scanInput");
+const scanOverlay = document.getElementById("scanOverlay");
+const scanProgress = document.getElementById("scanProgress");
+
+document.getElementById("btnScan").addEventListener("click", ()=> scanInput.click());
+
+scanInput.addEventListener("change", async (e)=>{
+  const file = e.target.files[0];
+  scanInput.value = "";
+  if(!file) return;
+  scanOverlay.classList.add("show");
+  scanProgress.textContent = "Preparando imagem...";
+  try{
+    const canvas = await preprocessImageForOCR(file);
+    scanProgress.textContent = "Reconhecendo texto...";
+    const result = await Tesseract.recognize(canvas, "por", {
+      logger: (m) => {
+        if(m.status === "recognizing text"){
+          scanProgress.textContent = `Reconhecendo texto... ${Math.round((m.progress||0)*100)}%`;
+        }
+      }
+    });
+    const text = result.data.text || "";
+    const extracted = parseNotaFromText(text);
+    applyScannedData(extracted);
+  }catch(err){
+    console.error("Erro no OCR", err);
+    showToast("Não consegui ler a imagem. Tente uma foto mais nítida ou preencha manualmente.");
+    openNew();
+  }finally{
+    scanOverlay.classList.remove("show");
+  }
+});
+
+// Pré-processa a imagem (escala de cinza + contraste + ampliação) para melhorar o OCR
+function preprocessImageForOCR(file){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const scale = Math.min(2200 / img.width, 3);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+        // escala de cinza + aumento de contraste simples
+        let sum = 0;
+        for(let i=0; i<d.length; i+=4){
+          const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+          d[i] = d[i+1] = d[i+2] = gray;
+          sum += gray;
+        }
+        const mean = sum / (d.length/4);
+        const factor = 1.6;
+        for(let i=0; i<d.length; i+=4){
+          let v = (d[i] - mean) * factor + mean;
+          v = Math.max(0, Math.min(255, v));
+          d[i] = d[i+1] = d[i+2] = v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        resolve(canvas);
+      }catch(err){ reject(err); }
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Interpreta o texto reconhecido no formato do Portal de Manutenção e Inspeção
+function parseNotaFromText(text){
+  const norm = text.replace(/\r/g, "");
+  const out = {};
+
+  let m;
+  m = norm.match(/Solicita[çc][ãa]o[:\s]+(\d{5,})/i);
+  if(m) out.numero_solicitacao = m[1];
+
+  m = norm.match(/TAG[\s\S]{0,40}?Equipamento\*?\s*([0-9OIl]{5,7}[.\s]?[0-9A-Z]{3,6})/i);
+  if(m){
+    let raw = m[1].replace(/[\sIlO]/g, s => ({" ":"", "I":"1","l":"1","O":"0"}[s]));
+    raw = raw.replace(/\./g, "");
+    if(/^\d{9,10}$/.test(raw)){
+      out.tag_local = raw.slice(0,6) + "." + raw.slice(6);
+    } else if(/^[0-9A-Z]{6}\.[0-9A-Z]{3,6}$/i.test(m[1].trim())){
+      out.tag_local = m[1].trim().toUpperCase();
+    } else {
+      out.tag_local = raw;
+    }
+  }
+
+  m = norm.match(/Autor[\*\?ºª]?\s*[:\|]?\s*([A-Z]{3,8})\b/i);
+  if(m) out.chave = m[1].toUpperCase();
+
+  m = norm.match(/Texto breve\*?\s*\n+\s*(.+)/i);
+  if(m) out.titulo = m[1].trim().replace(/\s{2,}/g," ");
+
+  const descMatch = norm.match(/Descri[çc][ãa]o do evento observado[\s\S]*?\n([\s\S]+)/i);
+  if(descMatch){
+    let block = descMatch[1].trim();
+    const dateLineMatch = block.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})[^\n]*\n([\s\S]+)/);
+    if(dateLineMatch){
+      const [, dd, mm, yyyy, rest] = dateLineMatch;
+      out.data_abertura = `${yyyy}-${mm.padStart(2,"0")}-${dd.padStart(2,"0")}`;
+      block = rest.trim();
+    }
+    out.descricao = block.split(/\n{2,}/)[0].replace(/\s{2,}/g," ").trim();
+  }
+
+  // Local: tenta casar pela TAG exata no catálogo (mais confiável que ler "Denominação" via OCR)
+  if(out.tag_local){
+    const found = LOCATIONS_330101.find(([tag]) => tag.toUpperCase() === out.tag_local.toUpperCase());
+    if(found) out.local = found[1];
+  }
+  if(!out.local){
+    m = norm.match(/Denomina[çc][ãa]o\s+([A-ZÀ-Ú0-9º\-\/\s]{4,60}?)(?:\s{2,}|TAG|$)/im);
+    if(m) out.local = m[1].trim();
+  }
+
+  // Tipo de serviço: tenta casar por palavras-chave no título/descrição
+  const hay = ((out.titulo||"") + " " + (out.descricao||"")).toLowerCase();
+  const KEYWORDS = {
+    "Boiler / água quente": ["boiler","água quente"],
+    "Cafeteira industrial": ["cafeteira"],
+    "Tomada elétrica": ["tomada","elétric"],
+    "Ar-condicionado": ["ar condicionado","ar-condicionado","climatiza"],
+    "Hidráulica": ["hidráulic","encanamento","vazamento","torneira"],
+    "Construção civil": ["alvenaria","construção","reforma","forro","luminária","telhado"],
+    "Pintura": ["pintura","pintar"],
+    "Carpintaria": ["carpintaria","madeira","marcenaria"],
+    "Limpeza": ["limpeza","limpar"],
+    "Roçagem": ["roçagem","capina","roçad"],
+    "Serralheria": ["serralheria","solda","metálic"]
+  };
+  for(const nome in KEYWORDS){
+    if(KEYWORDS[nome].some(k => hay.includes(k))){ out.tipo_servico = nome; break; }
+  }
+
+  return out;
+}
+
+function applyScannedData(extracted){
+  openNew();
+  if(extracted.numero_solicitacao) document.getElementById("f_num").value = extracted.numero_solicitacao;
+  if(extracted.data_abertura) document.getElementById("f_data").value = extracted.data_abertura;
+  if(extracted.chave) document.getElementById("f_chave").value = extracted.chave;
+  if(extracted.titulo) document.getElementById("f_titulo").value = extracted.titulo;
+  if(extracted.descricao) document.getElementById("f_desc").value = extracted.descricao;
+
+  if(extracted.tag_local || extracted.local){
+    const found = LOCATIONS_330101.find(([tag, nome]) =>
+      (extracted.tag_local && tag.toUpperCase() === extracted.tag_local.toUpperCase()) ||
+      (extracted.local && nome.toUpperCase() === extracted.local.toUpperCase())
+    );
+    if(found){
+      selectLocal(found[0]);
+    } else if(extracted.local){
+      selectLocal(CUSTOM_LOCAL_VALUE);
+      localCustomInput.value = extracted.local.toUpperCase();
+      if(extracted.tag_local) tagInput.value = extracted.tag_local;
+    }
+  }
+
+  if(extracted.tipo_servico && serviceTypes.some(t=>t.nome===extracted.tipo_servico)){
+    document.getElementById("f_tipo").value = extracted.tipo_servico;
+  }
+
+  const gotAnything = Object.keys(extracted).length > 0;
+  document.getElementById("scanBanner").style.display = gotAnything ? "flex" : "none";
+  if(!gotAnything) showToast("Não identifiquei os campos automaticamente — preencha manualmente.");
+}
+
 function openEdit(id){
   const t = tickets.find(x=>x.id===id);
   if(!t) return;
