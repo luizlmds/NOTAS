@@ -372,7 +372,7 @@
         <div class="field"><label>Data de abertura</label><input type="date" id="f_data" required></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Chave</label><input type="text" id="f_chave" value="EUWJ"></div>
+        <div class="field"><label>Chave</label><input type="text" id="f_chave" placeholder="Ex.: EUWJ"></div>
         <div class="field"><label>TAG/Local</label><input type="text" id="f_tag"><span class="field-hint" id="f_tag_hint"></span></div>
       </div>
       <div class="field">
@@ -1081,7 +1081,6 @@ function openNew(){
   document.getElementById("modalTitle").textContent = "Nova nota";
   form.reset();
   document.getElementById("f_data").value = new Date().toISOString().slice(0,10);
-  document.getElementById("f_chave").value = "EUWJ";
   resetLocalCombo();
   document.getElementById("scanBanner").style.display = "none";
   overlay.classList.add("show");
@@ -1188,16 +1187,26 @@ function parseNotaFromText(text){
   m = norm.match(/Texto breve\*?\s*\n+\s*(.+)/i);
   if(m) out.titulo = m[1].trim().replace(/\s{2,}/g," ");
 
+  // Data de abertura: vem do campo "...aberta em DD/MM/AAAA" no topo do documento
+  m = norm.match(/aberta em\s*(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/i);
+  if(m){
+    const [, dd, mm, yyyy] = m;
+    out.data_abertura = `${yyyy}-${mm.padStart(2,"0")}-${dd.padStart(2,"0")}`;
+  }
+
   const descMatch = norm.match(/Descri[çc][ãa]o do evento observado[\s\S]*?\n([\s\S]+)/i);
   if(descMatch){
     let block = descMatch[1].trim();
+    // remove a linha de data/hora/autor que abre o campo (ex.: "01.09.2026 13:48:43 BRAZIL (EUWJ)"), mas sem sobrescrever a data já obtida acima
     const dateLineMatch = block.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})[^\n]*\n([\s\S]+)/);
     if(dateLineMatch){
-      const [, dd, mm, yyyy, rest] = dateLineMatch;
-      out.data_abertura = `${yyyy}-${mm.padStart(2,"0")}-${dd.padStart(2,"0")}`;
-      block = rest.trim();
+      if(!out.data_abertura){
+        const [, dd, mm, yyyy] = dateLineMatch;
+        out.data_abertura = `${yyyy}-${mm.padStart(2,"0")}-${dd.padStart(2,"0")}`;
+      }
+      block = dateLineMatch[4].trim();
     }
-    out.descricao = block.split(/\n{2,}/)[0].replace(/\s{2,}/g," ").trim();
+    out.descricao = block.replace(/\n{3,}/g,"\n\n").replace(/[ \t]{2,}/g," ").trim();
   }
 
   // Local: tenta casar pela TAG exata no catálogo (mais confiável que ler "Denominação" via OCR)
